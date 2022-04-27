@@ -14,13 +14,12 @@ axum = "0.5.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0.30"
-tower = "0.4.12"
-tracing = "0.1"
 
 [features]
 anyhow_error = ["anyhow"]
 
 [dev-dependencies]
+tracing = "0.1"
 anyhow = "1.0.57"
 tokio = { version = "1.0", features = ["full"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
