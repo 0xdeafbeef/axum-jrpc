@@ -1,1 +1,2 @@
-# axum-jrpc
+# Json RPC extractor for axum
+Docs: `cargo doc --open`

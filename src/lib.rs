@@ -49,6 +49,9 @@ use serde_json::Value;
 
 pub mod error;
 
+/// Hack until [try_trait_v2](https://github.com/rust-lang/rust/issues/84277) is not stabilized
+pub type JrpcResult = Result<JsonRpcRepsonse, JsonRpcRepsonse>;
+
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 struct JsonRpcRequest {
@@ -61,6 +64,21 @@ struct JsonRpcRequest {
 #[derive(Debug)]
 /// Parses a JSON-RPC request, and returns the request ID, the method name, and the parameters.
 /// If the request is invalid, returns an error.
+/// ```rust
+/// use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcRepsonse};
+///
+/// fn router(req: JsonRpcExtractor) -> JrpcResult {
+///   let req_id = req.get_answer_id()?;
+///   let method = req.method();
+///   match method {
+///     "add" => {
+///        let params: [i32;2] = req.parse_params()?;
+///        return Ok(JsonRpcRepsonse::success(req_id, params[0] + params[1]))
+///     }
+///     m =>  Ok(req.method_not_found(m))
+///   }
+/// }
+/// ```
 pub struct JsonRpcExtractor {
     pub parsed: Value,
     pub method: String,
@@ -72,7 +90,7 @@ impl JsonRpcExtractor {
         self.id
     }
 
-    pub fn get_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcRepsonse> {
+    pub fn parse_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcRepsonse> {
         let value = serde_json::from_value(self.parsed);
         match value {
             Ok(v) => Ok(v),
@@ -85,6 +103,10 @@ impl JsonRpcExtractor {
                 Err(JsonRpcRepsonse::error(self.id, error))
             }
         }
+    }
+
+    pub fn method(&self) -> &str {
+        &self.method
     }
 
     pub fn method_not_found(&self, method: &str) -> JsonRpcRepsonse {
@@ -114,7 +136,7 @@ where
                 return Err(JsonRpcRepsonse {
                     id: 0,
                     jsonrpc: "2.0",
-                    result: JsonRpcResult::Error(JsonRpcError::new(
+                    result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         e.to_string(),
                         Value::Null,
@@ -126,7 +148,7 @@ where
             return Err(JsonRpcRepsonse {
                 id: parsed.id,
                 jsonrpc: "2.0",
-                result: JsonRpcResult::Error(JsonRpcError::new(
+                result: JsonRpcAnswer::Error(JsonRpcError::new(
                     JsonRpcErrorReason::InvalidRequest,
                     "Invalid jsonrpc version".to_owned(),
                     Value::Null,
@@ -145,7 +167,7 @@ where
 /// A JSON-RPC response.
 pub struct JsonRpcRepsonse {
     jsonrpc: &'static str,
-    pub result: JsonRpcResult,
+    pub result: JsonRpcAnswer,
     /// The request ID.
     id: i64,
 }
@@ -165,7 +187,7 @@ impl JsonRpcRepsonse {
                 return JsonRpcRepsonse {
                     id,
                     jsonrpc: "2.0",
-                    result: JsonRpcResult::Error(err),
+                    result: JsonRpcAnswer::Error(err),
                 };
             }
         };
@@ -173,7 +195,7 @@ impl JsonRpcRepsonse {
         JsonRpcRepsonse {
             id,
             jsonrpc: "2.0",
-            result: JsonRpcResult::Result(result),
+            result: JsonRpcAnswer::Result(result),
         }
     }
 
@@ -181,7 +203,7 @@ impl JsonRpcRepsonse {
         JsonRpcRepsonse {
             id,
             jsonrpc: "2.0",
-            result: JsonRpcResult::Error(error),
+            result: JsonRpcAnswer::Error(error),
         }
     }
 }
@@ -195,7 +217,7 @@ impl IntoResponse for JsonRpcRepsonse {
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
 /// JsonRpc [response object](https://www.jsonrpc.org/specification#response_object)
-pub enum JsonRpcResult {
+pub enum JsonRpcAnswer {
     Result(Value),
     Error(JsonRpcError),
 }
