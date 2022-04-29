@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Constants for [error object](https://www.jsonrpc.org/specification#error_object)
@@ -58,7 +58,7 @@ impl JsonRpcErrorReason {
     }
 }
 
-#[derive(Debug, Error, Serialize)]
+#[derive(Debug, Error, Serialize, Deserialize)]
 pub struct JsonRpcError {
     code: i32,
     message: String,

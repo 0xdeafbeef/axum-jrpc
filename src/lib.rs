@@ -135,7 +135,7 @@ where
             Err(e) => {
                 return Err(JsonRpcRepsonse {
                     id: 0,
-                    jsonrpc: "2.0",
+                    jsonrpc: "2.0".to_owned(),
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         e.to_string(),
@@ -147,7 +147,7 @@ where
         if parsed.jsonrpc != "2.0" {
             return Err(JsonRpcRepsonse {
                 id: parsed.id,
-                jsonrpc: "2.0",
+                jsonrpc: "2.0".to_owned(),
                 result: JsonRpcAnswer::Error(JsonRpcError::new(
                     JsonRpcErrorReason::InvalidRequest,
                     "Invalid jsonrpc version".to_owned(),
@@ -163,10 +163,10 @@ where
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize)]
 /// A JSON-RPC response.
 pub struct JsonRpcRepsonse {
-    jsonrpc: &'static str,
+    jsonrpc: String,
     pub result: JsonRpcAnswer,
     /// The request ID.
     id: i64,
@@ -186,7 +186,7 @@ impl JsonRpcRepsonse {
                 );
                 return JsonRpcRepsonse {
                     id,
-                    jsonrpc: "2.0",
+                    jsonrpc: "2.0".to_owned(),
                     result: JsonRpcAnswer::Error(err),
                 };
             }
@@ -194,7 +194,7 @@ impl JsonRpcRepsonse {
 
         JsonRpcRepsonse {
             id,
-            jsonrpc: "2.0",
+            jsonrpc: "2.0".to_owned(),
             result: JsonRpcAnswer::Result(result),
         }
     }
@@ -202,7 +202,7 @@ impl JsonRpcRepsonse {
     pub fn error(id: i64, error: JsonRpcError) -> Self {
         JsonRpcRepsonse {
             id,
-            jsonrpc: "2.0",
+            jsonrpc: "2.0".to_owned(),
             result: JsonRpcAnswer::Error(error),
         }
     }
@@ -214,7 +214,7 @@ impl IntoResponse for JsonRpcRepsonse {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize)]
 #[serde(untagged)]
 /// JsonRpc [response object](https://www.jsonrpc.org/specification#response_object)
 pub enum JsonRpcAnswer {
