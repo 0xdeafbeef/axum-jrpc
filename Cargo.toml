@@ -1,6 +1,6 @@
 [package]
 name = "axum-jrpc"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 keywords = ["http", "web", "axum", "jrpc", "json-rpc"]
@@ -8,6 +8,7 @@ categories = ["asynchronous", "network-programming", "web-programming"]
 description = "A JSON-RPC extractor for Axum"
 homepage = "https://github.com/0xdeafbeef/axum-jrpc"
 repository = "https://github.com/0xdeafbeef/axum-jrpc"
+readme = "README.md"
 
 [dependencies]
 anyhow = { version = "1.0.56", optional = true }
