@@ -1,7 +1,7 @@
 use axum::extract::ContentLengthLimit;
 use axum::routing::post;
 use axum::Router;
-use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcRepsonse};
+use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcResponse};
 
 use axum_jrpc::error::{JsonRpcError, JsonRpcErrorReason};
 use serde::Deserialize;
@@ -35,24 +35,24 @@ async fn handler(
         "add" => {
             let request: Test = value.parse_params()?;
             let result = request.a + request.b;
-            Ok(JsonRpcRepsonse::success(answer_id, result))
+            Ok(JsonRpcResponse::success(answer_id, result))
         }
         "sub" => {
             let result: [i32; 2] = value.parse_params()?;
             let result = match failing_sub(result[0], result[1]).await {
                 Ok(result) => result,
-                Err(e) => return Err(JsonRpcRepsonse::error(answer_id, e.into())),
+                Err(e) => return Err(JsonRpcResponse::error(answer_id, e.into())),
             };
-            Ok(JsonRpcRepsonse::success(answer_id, result))
+            Ok(JsonRpcResponse::success(answer_id, result))
         }
         "div" => {
             let result: [i32; 2] = value.parse_params()?;
             let result = match failing_div(result[0], result[1]).await {
                 Ok(result) => result,
-                Err(e) => return Err(JsonRpcRepsonse::error(answer_id, e.into())),
+                Err(e) => return Err(JsonRpcResponse::error(answer_id, e.into())),
             };
 
-            Ok(JsonRpcRepsonse::success(answer_id, result))
+            Ok(JsonRpcResponse::success(answer_id, result))
         }
         method => Ok(value.method_not_found(method)),
     }

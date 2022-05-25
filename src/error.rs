@@ -17,6 +17,8 @@ pub enum JsonRpcErrorReason {
     InternalError,
     /// -32000 to -32099
     ServerError(i32),
+    /// All other space
+    ApplicationError(i32),
 }
 
 impl std::fmt::Display for JsonRpcErrorReason {
@@ -28,6 +30,9 @@ impl std::fmt::Display for JsonRpcErrorReason {
             JsonRpcErrorReason::InvalidParams => write!(f, "Invalid params"),
             JsonRpcErrorReason::InternalError => write!(f, "Internal error"),
             JsonRpcErrorReason::ServerError(code) => write!(f, "Server error: {}", code),
+            JsonRpcErrorReason::ApplicationError(code) => {
+                write!(f, "Application error: {}", code)
+            }
         }
     }
 }
@@ -40,7 +45,9 @@ impl From<JsonRpcErrorReason> for i32 {
             JsonRpcErrorReason::MethodNotFound => METHOD_NOT_FOUND,
             JsonRpcErrorReason::InvalidParams => INVALID_PARAMS,
             JsonRpcErrorReason::InternalError => INTERNAL_ERROR,
-            JsonRpcErrorReason::ServerError(code) => code,
+            JsonRpcErrorReason::ServerError(code) | JsonRpcErrorReason::ApplicationError(code) => {
+                code
+            }
         }
     }
 }
@@ -53,7 +60,8 @@ impl JsonRpcErrorReason {
             METHOD_NOT_FOUND => Self::MethodNotFound,
             INVALID_PARAMS => Self::InvalidParams,
             INTERNAL_ERROR => Self::InternalError,
-            other => Self::ServerError(other),
+            -32099..=-32000 => Self::ServerError(code),
+            _ => Self::ApplicationError(code),
         }
     }
 }
@@ -92,7 +100,7 @@ impl From<anyhow::Error> for JsonRpcError {
         let message = error.to_string();
         let data = serde_json::Value::Null;
         Self {
-            code: INTERNAL_ERROR,
+            code: 1,
             message,
             data,
         }

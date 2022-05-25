@@ -50,7 +50,7 @@ use serde_json::Value;
 pub mod error;
 
 /// Hack until [try_trait_v2](https://github.com/rust-lang/rust/issues/84277) is not stabilized
-pub type JrpcResult = Result<JsonRpcRepsonse, JsonRpcRepsonse>;
+pub type JrpcResult = Result<JsonRpcResponse, JsonRpcResponse>;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -65,7 +65,7 @@ struct JsonRpcRequest {
 /// Parses a JSON-RPC request, and returns the request ID, the method name, and the parameters.
 /// If the request is invalid, returns an error.
 /// ```rust
-/// use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcRepsonse};
+/// use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcResponse};
 ///
 /// fn router(req: JsonRpcExtractor) -> JrpcResult {
 ///   let req_id = req.get_answer_id()?;
@@ -73,7 +73,7 @@ struct JsonRpcRequest {
 ///   match method {
 ///     "add" => {
 ///        let params: [i32;2] = req.parse_params()?;
-///        return Ok(JsonRpcRepsonse::success(req_id, params[0] + params[1]))
+///        return Ok(JsonRpcResponse::success(req_id, params[0] + params[1]));
 ///     }
 ///     m =>  Ok(req.method_not_found(m))
 ///   }
@@ -90,7 +90,7 @@ impl JsonRpcExtractor {
         self.id
     }
 
-    pub fn parse_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcRepsonse> {
+    pub fn parse_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcResponse> {
         let value = serde_json::from_value(self.parsed);
         match value {
             Ok(v) => Ok(v),
@@ -100,7 +100,7 @@ impl JsonRpcExtractor {
                     e.to_string(),
                     Value::Null,
                 );
-                Err(JsonRpcRepsonse::error(self.id, error))
+                Err(JsonRpcResponse::error(self.id, error))
             }
         }
     }
@@ -109,13 +109,13 @@ impl JsonRpcExtractor {
         &self.method
     }
 
-    pub fn method_not_found(&self, method: &str) -> JsonRpcRepsonse {
+    pub fn method_not_found(&self, method: &str) -> JsonRpcResponse {
         let error = JsonRpcError::new(
             JsonRpcErrorReason::MethodNotFound,
             format!("Method `{}` not found", method),
             Value::Null,
         );
-        JsonRpcRepsonse::error(self.id, error)
+        JsonRpcResponse::error(self.id, error)
     }
 }
 
@@ -126,14 +126,14 @@ where
     B::Data: Send,
     B::Error: Into<BoxError>,
 {
-    type Rejection = JsonRpcRepsonse;
+    type Rejection = JsonRpcResponse;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         let json = Json::from_request(req).await;
         let parsed: JsonRpcRequest = match json {
             Ok(a) => a.0,
             Err(e) => {
-                return Err(JsonRpcRepsonse {
+                return Err(JsonRpcResponse {
                     id: 0,
                     jsonrpc: "2.0".to_owned(),
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
@@ -145,7 +145,7 @@ where
             }
         };
         if parsed.jsonrpc != "2.0" {
-            return Err(JsonRpcRepsonse {
+            return Err(JsonRpcResponse {
                 id: parsed.id,
                 jsonrpc: "2.0".to_owned(),
                 result: JsonRpcAnswer::Error(JsonRpcError::new(
@@ -165,14 +165,21 @@ where
 
 #[derive(Serialize, Debug, Deserialize)]
 /// A JSON-RPC response.
-pub struct JsonRpcRepsonse {
+pub struct JsonRpcResponse {
     jsonrpc: String,
     pub result: JsonRpcAnswer,
     /// The request ID.
     id: i64,
 }
 
-impl JsonRpcRepsonse {
+impl JsonRpcResponse {
+    fn new(id: i64, result: JsonRpcAnswer) -> Self {
+        Self {
+            jsonrpc: "2.0".to_owned(),
+            result,
+            id,
+        }
+    }
     /// Returns a response with the given result
     /// Returns JsonRpcError if the `result` is invalid input for [`serde_json::to_value`]
     pub fn success<T: Serialize>(id: i64, result: T) -> Self {
@@ -184,31 +191,19 @@ impl JsonRpcRepsonse {
                     e.to_string(),
                     Value::Null,
                 );
-                return JsonRpcRepsonse {
-                    id,
-                    jsonrpc: "2.0".to_owned(),
-                    result: JsonRpcAnswer::Error(err),
-                };
+                return JsonRpcResponse::error(id, err);
             }
         };
 
-        JsonRpcRepsonse {
-            id,
-            jsonrpc: "2.0".to_owned(),
-            result: JsonRpcAnswer::Result(result),
-        }
+        JsonRpcResponse::new(id, JsonRpcAnswer::Result(result))
     }
 
     pub fn error(id: i64, error: JsonRpcError) -> Self {
-        JsonRpcRepsonse {
-            id,
-            jsonrpc: "2.0".to_owned(),
-            result: JsonRpcAnswer::Error(error),
-        }
+        JsonRpcResponse::new(id, JsonRpcAnswer::Error(error))
     }
 }
 
-impl IntoResponse for JsonRpcRepsonse {
+impl IntoResponse for JsonRpcResponse {
     fn into_response(self) -> Response {
         Json(self).into_response()
     }
