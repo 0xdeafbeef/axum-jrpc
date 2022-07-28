@@ -54,11 +54,11 @@ pub type JrpcResult = Result<JsonRpcResponse, JsonRpcResponse>;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-struct JsonRpcRequest {
-    id: i64,
-    jsonrpc: String,
-    method: String,
-    params: Value,
+pub struct JsonRpcRequest {
+    pub id: i64,
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: Value,
 }
 
 #[derive(Debug)]
