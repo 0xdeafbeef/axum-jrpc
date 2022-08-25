@@ -35,17 +35,16 @@
 #![deny(unreachable_pub, private_in_public)]
 #![allow(elided_lifetimes_in_paths, clippy::type_complexity)]
 
-use crate::error::{JsonRpcError, JsonRpcErrorReason};
-use axum::extract::{FromRequest, RequestParts};
-
-use axum::response::{IntoResponse, Response};
-
 use axum::body::HttpBody;
+use axum::extract::FromRequest;
+use axum::http::Request;
+use axum::response::{IntoResponse, Response};
 use axum::{BoxError, Json};
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::error::{JsonRpcError, JsonRpcErrorReason};
 
 pub mod error;
 
@@ -120,16 +119,17 @@ impl JsonRpcExtractor {
 }
 
 #[async_trait::async_trait]
-impl<B> FromRequest<B> for JsonRpcExtractor
+impl<S, B> FromRequest<S, B> for JsonRpcExtractor
 where
-    B: HttpBody + Send,
+    B: HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<BoxError>,
+    S: Send + Sync,
 {
     type Rejection = JsonRpcResponse;
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let json = Json::from_request(req).await;
+    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        let json = Json::from_request(req, state).await;
         let parsed: JsonRpcRequest = match json {
             Ok(a) => a.0,
             Err(e) => {
