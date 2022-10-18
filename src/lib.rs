@@ -167,6 +167,7 @@ where
 /// A JSON-RPC response.
 pub struct JsonRpcResponse {
     jsonrpc: String,
+    #[serde(flatten)]
     pub result: JsonRpcAnswer,
     /// The request ID.
     id: i64,
@@ -210,7 +211,7 @@ impl IntoResponse for JsonRpcResponse {
 }
 
 #[derive(Serialize, Debug, Deserialize)]
-#[serde(untagged)]
+#[serde(rename_all = "lowercase")]
 /// JsonRpc [response object](https://www.jsonrpc.org/specification#response_object)
 pub enum JsonRpcAnswer {
     Result(Value),
