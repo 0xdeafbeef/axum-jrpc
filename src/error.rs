@@ -66,7 +66,7 @@ impl JsonRpcErrorReason {
     }
 }
 
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Error, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JsonRpcError {
     code: i32,
     message: String,
