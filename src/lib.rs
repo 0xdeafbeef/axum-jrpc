@@ -250,8 +250,8 @@ mod test {
             .post("/")
             .json(&JsonRpcRequest {
                 id: 0,
-                jsonrpc: "2.0".to_string(),
-                method: "add".to_string(),
+                jsonrpc: "2.0".to_owned(),
+                method: "add".to_owned(),
                 params: serde_json::to_value(Test { a: 0, b: 111 }).unwrap(),
             })
             .send()
@@ -264,8 +264,8 @@ mod test {
             .post("/")
             .json(&JsonRpcRequest {
                 id: 0,
-                jsonrpc: "2.0".to_string(),
-                method: "lol".to_string(),
+                jsonrpc: "2.0".to_owned(),
+                method: "lol".to_owned(),
                 params: serde_json::to_value(()).unwrap(),
             })
             .send()
@@ -317,7 +317,7 @@ mod test {
 
                 Ok(JsonRpcResponse::success(answer_id, result))
             }
-            method => return Ok(value.method_not_found(method)),
+            method => Ok(value.method_not_found(method)),
         }
     }
 
