@@ -36,35 +36,13 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run cargo test for nekoton
+      - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features
 
-      - name: Run cargo test for nekoton-abi
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --all-targets -p nekoton-abi
-
-      - name: Run cargo test for nekoton-derive
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --all-targets -p nekoton-derive
-
-      - name: Run cargo test for nekoton-abi
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --all-targets -p nekoton-abi
-
-      - name: Run cargo test for nekoton-utils
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --all-targets -p nekoton-utils
+     
 
   lints:
     name: Lints
