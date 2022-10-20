@@ -1,6 +1,6 @@
 [package]
 name = "axum-jrpc"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "MIT"
 keywords = ["http", "web", "axum", "jrpc", "json-rpc"]
@@ -27,3 +27,4 @@ anyhow = "1.0.57"
 tokio = { version = "1.0", features = ["full"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0.30"
+axum-test-helper = "0.1.1"
