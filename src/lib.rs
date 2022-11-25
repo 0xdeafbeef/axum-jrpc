@@ -229,7 +229,6 @@ mod test {
         Deserialize, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason, JsonRpcExtractor,
         JsonRpcRequest, JsonRpcResponse,
     };
-    use axum::extract::ContentLengthLimit;
     use axum::routing::post;
     use serde::Serialize;
     use serde_json::Value;
@@ -289,9 +288,7 @@ mod test {
         );
     }
 
-    async fn handler(
-        ContentLengthLimit(value): ContentLengthLimit<JsonRpcExtractor, 1024>,
-    ) -> JrpcResult {
+    async fn handler(value: JsonRpcExtractor) -> JrpcResult {
         let answer_id = value.get_answer_id();
         println!("{:?}", value);
         match value.method.as_str() {

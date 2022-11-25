@@ -1,4 +1,3 @@
-use axum::extract::ContentLengthLimit;
 use axum::routing::post;
 use axum::Router;
 use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcResponse};
@@ -26,9 +25,7 @@ async fn main() {
         .unwrap();
 }
 
-async fn handler(
-    ContentLengthLimit(value): ContentLengthLimit<JsonRpcExtractor, 1024>,
-) -> JrpcResult {
+async fn handler(value: JsonRpcExtractor) -> JrpcResult {
     let answer_id = value.get_answer_id();
     println!("{:?}", value);
     match value.method.as_str() {
