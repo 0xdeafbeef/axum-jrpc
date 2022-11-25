@@ -1,6 +1,6 @@
 [package]
 name = "axum-jrpc"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 license = "MIT"
 keywords = ["http", "web", "axum", "jrpc", "json-rpc"]
