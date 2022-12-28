@@ -284,8 +284,8 @@ mod test {
         let error = JsonRpcResponse::error(0, error);
 
         assert_eq!(
-            serde_json::to_value(&error).unwrap(),
-            serde_json::to_value(&response).unwrap()
+            serde_json::to_value(error).unwrap(),
+            serde_json::to_value(response).unwrap()
         );
     }
 
