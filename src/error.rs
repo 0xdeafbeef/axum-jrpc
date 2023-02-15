@@ -8,7 +8,7 @@ pub const INVALID_PARAMS: i32 = -32602;
 pub const INTERNAL_ERROR: i32 = -32603;
 pub const PARSE_ERROR: i32 = -32700;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum JsonRpcErrorReason {
     ParseError,
     InvalidRequest,
@@ -66,7 +66,7 @@ impl JsonRpcErrorReason {
     }
 }
 
-#[derive(Debug, Error, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Error, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JsonRpcError {
     code: i32,
     message: String,
