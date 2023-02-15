@@ -35,6 +35,8 @@
 #![deny(unreachable_pub, private_in_public)]
 #![allow(elided_lifetimes_in_paths, clippy::type_complexity)]
 
+use std::borrow::Cow;
+
 use axum::body::HttpBody;
 use axum::extract::FromRequest;
 use axum::http::Request;
@@ -51,13 +53,63 @@ pub mod error;
 /// Hack until [try_trait_v2](https://github.com/rust-lang/rust/issues/84277) is not stabilized
 pub type JrpcResult = Result<JsonRpcResponse, JsonRpcResponse>;
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug)]
 pub struct JsonRpcRequest {
     pub id: i64,
-    pub jsonrpc: String,
     pub method: String,
     pub params: Value,
+}
+
+impl Serialize for JsonRpcRequest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        struct Helper<'a> {
+            jsonrpc: &'static str,
+            id: i64,
+            method: &'a str,
+            params: &'a Value,
+        }
+
+        Helper {
+            jsonrpc: JSONRPC,
+            id: self.id,
+            method: &self.method,
+            params: &self.params,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for JsonRpcRequest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        #[derive(Deserialize)]
+        struct Helper<'a> {
+            #[serde(borrow)]
+            jsonrpc: Cow<'a, str>,
+            id: i64,
+            method: String,
+            params: Value,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        if helper.jsonrpc == JSONRPC {
+            Ok(Self {
+                id: helper.id,
+                method: helper.method,
+                params: helper.params,
+            })
+        } else {
+            Err(D::Error::custom("Unknown jsonrpc version"))
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -136,7 +188,6 @@ where
             Err(e) => {
                 return Err(JsonRpcResponse {
                     id: 0,
-                    jsonrpc: "2.0".to_owned(),
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         e.to_string(),
@@ -145,17 +196,7 @@ where
                 })
             }
         };
-        if parsed.jsonrpc != "2.0" {
-            return Err(JsonRpcResponse {
-                id: parsed.id,
-                jsonrpc: "2.0".to_owned(),
-                result: JsonRpcAnswer::Error(JsonRpcError::new(
-                    JsonRpcErrorReason::InvalidRequest,
-                    "Invalid jsonrpc version".to_owned(),
-                    Value::Null,
-                )),
-            });
-        }
+
         Ok(Self {
             parsed: parsed.params,
             method: parsed.method,
@@ -164,24 +205,20 @@ where
     }
 }
 
-#[derive(Serialize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// A JSON-RPC response.
 pub struct JsonRpcResponse {
-    jsonrpc: String,
-    #[serde(flatten)]
+    /// Request content.
     pub result: JsonRpcAnswer,
     /// The request ID.
-    id: i64,
+    pub id: i64,
 }
 
 impl JsonRpcResponse {
     fn new(id: i64, result: JsonRpcAnswer) -> Self {
-        Self {
-            jsonrpc: "2.0".to_owned(),
-            result,
-            id,
-        }
+        Self { result, id }
     }
+
     /// Returns a response with the given result
     /// Returns JsonRpcError if the `result` is invalid input for [`serde_json::to_value`]
     pub fn success<T: Serialize>(id: i64, result: T) -> Self {
@@ -202,9 +239,58 @@ impl JsonRpcResponse {
 
     pub fn error(id: i64, error: JsonRpcError) -> Self {
         JsonRpcResponse {
-            jsonrpc: "2.0".to_owned(),
             result: JsonRpcAnswer::Error(error),
             id,
+        }
+    }
+}
+
+impl Serialize for JsonRpcResponse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        struct Helper<'a> {
+            jsonrpc: &'static str,
+            #[serde(flatten)]
+            result: &'a JsonRpcAnswer,
+            id: i64,
+        }
+
+        Helper {
+            jsonrpc: JSONRPC,
+            result: &self.result,
+            id: self.id,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for JsonRpcResponse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        #[derive(Deserialize)]
+        struct Helper<'a> {
+            #[serde(borrow)]
+            jsonrpc: Cow<'a, str>,
+            #[serde(flatten)]
+            result: JsonRpcAnswer,
+            id: i64,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        if helper.jsonrpc == JSONRPC {
+            Ok(Self {
+                result: helper.result,
+                id: helper.id,
+            })
+        } else {
+            Err(D::Error::custom("Unknown jsonrpc version"))
         }
     }
 }
@@ -215,13 +301,15 @@ impl IntoResponse for JsonRpcResponse {
     }
 }
 
-#[derive(Serialize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 /// JsonRpc [response object](https://www.jsonrpc.org/specification#response_object)
 pub enum JsonRpcAnswer {
     Result(Value),
     Error(JsonRpcError),
 }
+
+const JSONRPC: &str = "2.0";
 
 #[cfg(test)]
 #[cfg(feature = "anyhow_error")]
@@ -250,7 +338,6 @@ mod test {
             .post("/")
             .json(&JsonRpcRequest {
                 id: 0,
-                jsonrpc: "2.0".to_owned(),
                 method: "add".to_owned(),
                 params: serde_json::to_value(Test { a: 0, b: 111 }).unwrap(),
             })
@@ -264,7 +351,6 @@ mod test {
             .post("/")
             .json(&JsonRpcRequest {
                 id: 0,
-                jsonrpc: "2.0".to_owned(),
                 method: "lol".to_owned(),
                 params: serde_json::to_value(()).unwrap(),
             })
