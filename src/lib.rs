@@ -260,7 +260,7 @@ impl JsonRpcResponse {
                         e.to_string(),
                         Value::default(),
                     );
-                  return JsonRpcResponse::error(id, err);
+                    JsonRpcResponse::error(id, err)
                 }
             }
           } else if #[cfg(feature = "serde_json")] {
@@ -272,7 +272,7 @@ impl JsonRpcResponse {
                         e.to_string(),
                         Value::Null,
                     );
-                    return JsonRpcResponse::error(id, err);
+                    JsonRpcResponse::error(id, err)
                 }
             }
           }
