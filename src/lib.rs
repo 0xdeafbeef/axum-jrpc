@@ -42,13 +42,25 @@ use axum::extract::FromRequest;
 use axum::http::Request;
 use axum::response::{IntoResponse, Response};
 use axum::{BoxError, Json};
+use cfg_if::cfg_if;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use crate::error::{JsonRpcError, JsonRpcErrorReason};
-
-pub mod error;
+cfg_if! {
+    if #[cfg(feature = "serde_json")] {
+        pub use serde_json::Value;
+        pub mod error;
+        use crate::error::{JsonRpcError, JsonRpcErrorReason};
+    }
+    else if #[cfg(feature = "simd")] {
+        pub use simd_json::OwnedValue as Value;
+        pub mod error;
+        use crate::error::{JsonRpcError, JsonRpcErrorReason};
+    }
+    else {
+        compile_error!("features `serde_json` and `simd` are mutually exclusive");
+    }
+}
 
 /// Hack until [try_trait_v2](https://github.com/rust-lang/rust/issues/84277) is not stabilized
 pub type JrpcResult = Result<JsonRpcResponse, JsonRpcResponse>;
@@ -142,16 +154,32 @@ impl JsonRpcExtractor {
     }
 
     pub fn parse_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcResponse> {
-        let value = serde_json::from_value(self.parsed);
-        match value {
-            Ok(v) => Ok(v),
-            Err(e) => {
-                let error = JsonRpcError::new(
-                    JsonRpcErrorReason::InvalidParams,
-                    e.to_string(),
-                    Value::Null,
-                );
-                Err(JsonRpcResponse::error(self.id, error))
+        cfg_if::cfg_if! {
+           if #[cfg(feature = "simd")] {
+                match simd_json::serde::from_owned_value(self.parsed){
+                    Ok(v) => Ok(v),
+                    Err(e) => {
+                        let error = JsonRpcError::new(
+                            JsonRpcErrorReason::InvalidParams,
+                            e.to_string(),
+                            Value::default(),
+                        );
+                        Err(JsonRpcResponse::error(self.id, error))
+                    }
+
+                }
+            } else if #[cfg(feature = "serde_json")] {
+                match serde_json::from_value(self.parsed){
+                    Ok(v) => Ok(v),
+                    Err(e) => {
+                        let error = JsonRpcError::new(
+                            JsonRpcErrorReason::InvalidParams,
+                            e.to_string(),
+                            Value::Null,
+                        );
+                        Err(JsonRpcResponse::error(self.id, error))
+                    }
+                }
             }
         }
     }
@@ -164,7 +192,7 @@ impl JsonRpcExtractor {
         let error = JsonRpcError::new(
             JsonRpcErrorReason::MethodNotFound,
             format!("Method `{}` not found", method),
-            Value::Null,
+            Value::default(),
         );
 
         JsonRpcResponse::error(self.id, error)
@@ -191,7 +219,7 @@ where
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         e.to_string(),
-                        Value::Null,
+                        Value::default(),
                     )),
                 })
             }
@@ -205,7 +233,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 /// A JSON-RPC response.
 pub struct JsonRpcResponse {
     /// Request content.
@@ -222,19 +250,33 @@ impl JsonRpcResponse {
     /// Returns a response with the given result
     /// Returns JsonRpcError if the `result` is invalid input for [`serde_json::to_value`]
     pub fn success<T: Serialize>(id: i64, result: T) -> Self {
-        let result = match serde_json::to_value(result) {
-            Ok(v) => v,
-            Err(e) => {
-                let err = JsonRpcError::new(
-                    JsonRpcErrorReason::InternalError,
-                    e.to_string(),
-                    Value::Null,
-                );
-                return JsonRpcResponse::error(id, err);
+        cfg_if::cfg_if! {
+          if #[cfg(feature = "simd")] {
+            match simd_json::serde::to_owned_value(result) {
+                Ok(v) => JsonRpcResponse::new(id, JsonRpcAnswer::Result(v)),
+                Err(e) => {
+                    let err = JsonRpcError::new(
+                        JsonRpcErrorReason::InternalError,
+                        e.to_string(),
+                        Value::default(),
+                    );
+                  return JsonRpcResponse::error(id, err);
+                }
             }
-        };
-
-        JsonRpcResponse::new(id, JsonRpcAnswer::Result(result))
+          } else if #[cfg(feature = "serde_json")] {
+            match serde_json::to_value(result) {
+                Ok(v) => JsonRpcResponse::new(id, JsonRpcAnswer::Result(v)),
+                Err(e) => {
+                    let err = JsonRpcError::new(
+                        JsonRpcErrorReason::InternalError,
+                        e.to_string(),
+                        Value::Null,
+                    );
+                    return JsonRpcResponse::error(id, err);
+                }
+            }
+          }
+        }
     }
 
     pub fn error(id: i64, error: JsonRpcError) -> Self {
@@ -301,7 +343,7 @@ impl IntoResponse for JsonRpcResponse {
     }
 }
 
-#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 /// JsonRpc [response object](https://www.jsonrpc.org/specification#response_object)
 pub enum JsonRpcAnswer {
@@ -312,7 +354,7 @@ pub enum JsonRpcAnswer {
 const JSONRPC: &str = "2.0";
 
 #[cfg(test)]
-#[cfg(feature = "anyhow_error")]
+#[cfg(all(feature = "anyhow_error", feature = "serde_json"))]
 mod test {
     use crate::{
         Deserialize, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason, JsonRpcExtractor,

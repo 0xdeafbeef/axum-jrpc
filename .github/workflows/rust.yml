@@ -6,6 +6,8 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-C target-feature=+avx,+avx2,+sse4.2"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -17,10 +19,17 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run cargo check
+      - name: Run cargo check serde_json
         uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: clippy
+          args: --features=serde_json,anyhow_error
+
+      - name: Run cargo check simd
+        uses: actions-rs/cargo@v1
+        with:
+            command: clippy
+            args: --features=simd,anyhow_error
 
   test:
     name: Test Suite
@@ -40,7 +49,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-features
+          args: --features=serde_json,anyhow_error
 
      
 
@@ -57,16 +66,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets -- -D warnings

@@ -1,6 +1,6 @@
 [package]
 name = "axum-jrpc"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 keywords = ["http", "web", "axum", "jrpc", "json-rpc"]
@@ -14,12 +14,16 @@ readme = "README.md"
 anyhow = { version = "1.0.56", optional = true }
 async-trait = "0.1.53"
 axum = "0.6.0"
+cfg-if = "1.0.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", optional = true }
+simd-json = { version = "0.9.1", optional = true }
 thiserror = "1.0.30"
 
 [features]
 anyhow_error = ["anyhow"]
+simd = ["simd-json"]
+serde_json = ["dep:serde_json"]
 
 [dev-dependencies]
 tracing = "0.1"

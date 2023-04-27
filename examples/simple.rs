@@ -3,6 +3,7 @@ use axum::Router;
 use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcResponse};
 
 use axum_jrpc::error::{JsonRpcError, JsonRpcErrorReason};
+use axum_jrpc::Value;
 use serde::Deserialize;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -85,7 +86,7 @@ impl From<CustomError> for JsonRpcError {
         JsonRpcError::new(
             JsonRpcErrorReason::ServerError(-32099),
             error.to_string(),
-            serde_json::Value::Null,
+            Value::default(),
         )
     }
 }
