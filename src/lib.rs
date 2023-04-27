@@ -37,9 +37,9 @@
 
 use std::borrow::Cow;
 
-use axum::body::HttpBody;
+use axum::body::{Bytes, HttpBody};
 use axum::extract::FromRequest;
-use axum::http::Request;
+use axum::http::{header, HeaderMap, Request};
 use axum::response::{IntoResponse, Response};
 use axum::{BoxError, Json};
 use cfg_if::cfg_if;
@@ -210,9 +210,20 @@ where
     type Rejection = JsonRpcResponse;
 
     async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
-        let json = Json::from_request(req, state).await;
-        let parsed: JsonRpcRequest = match json {
-            Ok(a) => a.0,
+        if !json_content_type(req.headers()) {
+            return Err(JsonRpcResponse {
+                id: 0,
+                result: JsonRpcAnswer::Error(JsonRpcError::new(
+                    JsonRpcErrorReason::InvalidRequest,
+                    "Invalid content type".to_owned(),
+                    Value::default(),
+                )),
+            });
+        }
+
+        #[allow(unused_mut)]
+        let mut bytes = match Bytes::from_request(req, state).await {
+            Ok(a) => a.to_vec(),
             Err(e) => {
                 return Err(JsonRpcResponse {
                     id: 0,
@@ -225,12 +236,69 @@ where
             }
         };
 
+        cfg_if!(
+            if #[cfg(feature = "simd")] {
+               let parsed: JsonRpcRequest = match simd_json::from_slice(&mut bytes){
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Err(JsonRpcResponse {
+                            id: 0,
+                            result: JsonRpcAnswer::Error(JsonRpcError::new(
+                                JsonRpcErrorReason::InvalidRequest,
+                                e.to_string(),
+                                Value::default(),
+                            )),
+                        })
+                    }
+                };
+            } else if #[cfg(feature = "serde_json")] {
+               let parsed: JsonRpcRequest = match serde_json::from_slice(&bytes){
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Err(JsonRpcResponse {
+                            id: 0,
+                            result: JsonRpcAnswer::Error(JsonRpcError::new(
+                                JsonRpcErrorReason::InvalidRequest,
+                                e.to_string(),
+                                Value::default(),
+                            )),
+                        })
+                    }
+                };
+            }
+        );
+
         Ok(Self {
             parsed: parsed.params,
             method: parsed.method,
             id: parsed.id,
         })
     }
+}
+
+fn json_content_type(headers: &HeaderMap) -> bool {
+    let content_type = if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
+        content_type
+    } else {
+        return false;
+    };
+
+    let content_type = if let Ok(content_type) = content_type.to_str() {
+        content_type
+    } else {
+        return false;
+    };
+
+    let mime = if let Ok(mime) = content_type.parse::<mime::Mime>() {
+        mime
+    } else {
+        return false;
+    };
+
+    let is_json_content_type = mime.type_() == "application"
+        && (mime.subtype() == "json" || mime.suffix().map_or(false, |name| name == "json"));
+
+    is_json_content_type
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,6 +1,6 @@
 [package]
 name = "axum-jrpc"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 license = "MIT"
 keywords = ["http", "web", "axum", "jrpc", "json-rpc"]
@@ -17,6 +17,7 @@ axum = "0.6.0"
 cfg-if = "1.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
+mime = "0.3.17"
 simd-json = { version = "0.9.1", optional = true }
 thiserror = "1.0.30"
 
