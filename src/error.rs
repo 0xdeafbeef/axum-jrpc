@@ -1,3 +1,5 @@
+use super::Value;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -66,15 +68,15 @@ impl JsonRpcErrorReason {
     }
 }
 
-#[derive(Debug, Error, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Error, Clone, Serialize, Deserialize, PartialEq)]
 pub struct JsonRpcError {
     code: i32,
     message: String,
-    data: serde_json::Value,
+    data: Value,
 }
 
 impl JsonRpcError {
-    pub fn new(code: JsonRpcErrorReason, message: String, data: serde_json::Value) -> Self {
+    pub fn new(code: JsonRpcErrorReason, message: String, data: Value) -> Self {
         Self {
             code: code.into(),
             message,
@@ -98,7 +100,7 @@ impl std::fmt::Display for JsonRpcError {
 impl From<anyhow::Error> for JsonRpcError {
     fn from(error: anyhow::Error) -> Self {
         let message = error.to_string();
-        let data = serde_json::Value::Null;
+        let data = Value::default();
         Self {
             code: 1,
             message,
