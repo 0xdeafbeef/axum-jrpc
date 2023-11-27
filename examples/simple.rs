@@ -1,6 +1,7 @@
 use axum::routing::post;
 use axum::Router;
 use axum_jrpc::{JrpcResult, JsonRpcExtractor, JsonRpcResponse};
+use std::net::SocketAddr;
 
 use axum_jrpc::error::{JsonRpcError, JsonRpcErrorReason};
 use axum_jrpc::Value;
@@ -20,10 +21,10 @@ async fn main() {
     let router = Router::new().route("/", post(handler));
 
     tracing::debug!("listening on 127.0.0.1:8080");
-    axum::Server::bind(&"127.0.0.1:8080".parse().unwrap())
-        .serve(router.into_make_service())
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080".parse::<SocketAddr>().unwrap())
         .await
         .unwrap();
+    axum::serve(listener, router).await.unwrap();
 }
 
 async fn handler(value: JsonRpcExtractor) -> JrpcResult {
