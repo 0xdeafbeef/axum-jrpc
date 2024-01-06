@@ -25,6 +25,7 @@ thiserror = "1.0.50"
 anyhow_error = ["anyhow"]
 simd = ["simd-json"]
 serde_json = ["dep:serde_json"]
+default = ["serde_json"]
 
 [dev-dependencies]
 tracing = "0.1"
