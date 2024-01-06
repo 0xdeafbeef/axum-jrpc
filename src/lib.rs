@@ -32,16 +32,16 @@
     nonstandard_style,
     missing_debug_implementations
 )]
-#![deny(unreachable_pub, private_in_public)]
+#![deny(unreachable_pub)]
 #![allow(elided_lifetimes_in_paths, clippy::type_complexity)]
 
 use std::borrow::Cow;
 
-use axum::body::{Bytes, HttpBody};
-use axum::extract::FromRequest;
-use axum::http::{header, HeaderMap, Request};
+use axum::body::Bytes;
+use axum::extract::{FromRequest, Request};
+use axum::http::{header, HeaderMap};
 use axum::response::{IntoResponse, Response};
-use axum::{BoxError, Json};
+use axum::Json;
 use cfg_if::cfg_if;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -200,16 +200,14 @@ impl JsonRpcExtractor {
 }
 
 #[async_trait::async_trait]
-impl<S, B> FromRequest<S, B> for JsonRpcExtractor
+impl<S> FromRequest<S> for JsonRpcExtractor
 where
-    B: HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<BoxError>,
+    Bytes: FromRequest<S>,
     S: Send + Sync,
 {
     type Rejection = JsonRpcResponse;
 
-    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         if !json_content_type(req.headers()) {
             return Err(JsonRpcResponse {
                 id: 0,
@@ -224,12 +222,12 @@ where
         #[allow(unused_mut)]
         let mut bytes = match Bytes::from_request(req, state).await {
             Ok(a) => a.to_vec(),
-            Err(e) => {
+            Err(_) => {
                 return Err(JsonRpcResponse {
                     id: 0,
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
-                        e.to_string(),
+                        "Invalid request".to_owned(),
                         Value::default(),
                     )),
                 })
