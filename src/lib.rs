@@ -67,7 +67,7 @@ pub type JrpcResult = Result<JsonRpcResponse, JsonRpcResponse>;
 
 #[derive(Debug)]
 pub struct JsonRpcRequest {
-    pub id: i64,
+    pub id: Id,
     pub method: String,
     pub params: Value,
 }
@@ -80,14 +80,14 @@ impl Serialize for JsonRpcRequest {
         #[derive(Serialize)]
         struct Helper<'a> {
             jsonrpc: &'static str,
-            id: i64,
+            id: Id,
             method: &'a str,
             params: &'a Value,
         }
 
         Helper {
             jsonrpc: JSONRPC,
-            id: self.id,
+            id: self.id.clone(),
             method: &self.method,
             params: &self.params,
         }
@@ -106,7 +106,7 @@ impl<'de> Deserialize<'de> for JsonRpcRequest {
         struct Helper<'a> {
             #[serde(borrow)]
             jsonrpc: Cow<'a, str>,
-            id: i64,
+            id: Id,
             method: String,
             params: Value,
         }
@@ -145,12 +145,12 @@ impl<'de> Deserialize<'de> for JsonRpcRequest {
 pub struct JsonRpcExtractor {
     pub parsed: Value,
     pub method: String,
-    pub id: i64,
+    pub id: Id,
 }
 
 impl JsonRpcExtractor {
-    pub fn get_answer_id(&self) -> i64 {
-        self.id
+    pub fn get_answer_id(&self) -> Id {
+        self.id.clone()
     }
 
     pub fn parse_params<T: DeserializeOwned>(self) -> Result<T, JsonRpcResponse> {
@@ -195,7 +195,7 @@ impl JsonRpcExtractor {
             Value::default(),
         );
 
-        JsonRpcResponse::error(self.id, error)
+        JsonRpcResponse::error(self.id.clone(), error)
     }
 }
 
@@ -210,7 +210,7 @@ where
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         if !json_content_type(req.headers()) {
             return Err(JsonRpcResponse {
-                id: 0,
+                id: Id::Num(0),
                 result: JsonRpcAnswer::Error(JsonRpcError::new(
                     JsonRpcErrorReason::InvalidRequest,
                     "Invalid content type".to_owned(),
@@ -224,7 +224,7 @@ where
             Ok(a) => a.to_vec(),
             Err(_) => {
                 return Err(JsonRpcResponse {
-                    id: 0,
+                    id: Id::Num(0),
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         "Invalid request".to_owned(),
@@ -240,7 +240,7 @@ where
                     Ok(a) => a,
                     Err(e) => {
                         return Err(JsonRpcResponse {
-                            id: 0,
+                            id: Id::Num(0),
                             result: JsonRpcAnswer::Error(JsonRpcError::new(
                                 JsonRpcErrorReason::InvalidRequest,
                                 e.to_string(),
@@ -254,7 +254,7 @@ where
                     Ok(a) => a,
                     Err(e) => {
                         return Err(JsonRpcResponse {
-                            id: 0,
+                            id: Id::Num(0),
                             result: JsonRpcAnswer::Error(JsonRpcError::new(
                                 JsonRpcErrorReason::InvalidRequest,
                                 e.to_string(),
@@ -305,17 +305,17 @@ pub struct JsonRpcResponse {
     /// Request content.
     pub result: JsonRpcAnswer,
     /// The request ID.
-    pub id: i64,
+    pub id: Id,
 }
 
 impl JsonRpcResponse {
-    fn new(id: i64, result: JsonRpcAnswer) -> Self {
+    fn new(id: Id, result: JsonRpcAnswer) -> Self {
         Self { result, id }
     }
 
     /// Returns a response with the given result
     /// Returns JsonRpcError if the `result` is invalid input for [`serde_json::to_value`]
-    pub fn success<T: Serialize>(id: i64, result: T) -> Self {
+    pub fn success<T: Serialize>(id: Id, result: T) -> Self {
         cfg_if::cfg_if! {
           if #[cfg(feature = "simd")] {
             match simd_json::serde::to_owned_value(result) {
@@ -345,7 +345,7 @@ impl JsonRpcResponse {
         }
     }
 
-    pub fn error(id: i64, error: JsonRpcError) -> Self {
+    pub fn error(id: Id, error: JsonRpcError) -> Self {
         JsonRpcResponse {
             result: JsonRpcAnswer::Error(error),
             id,
@@ -363,13 +363,13 @@ impl Serialize for JsonRpcResponse {
             jsonrpc: &'static str,
             #[serde(flatten)]
             result: &'a JsonRpcAnswer,
-            id: i64,
+            id: Id,
         }
 
         Helper {
             jsonrpc: JSONRPC,
             result: &self.result,
-            id: self.id,
+            id: self.id.clone(),
         }
         .serialize(serializer)
     }
@@ -388,7 +388,7 @@ impl<'de> Deserialize<'de> for JsonRpcResponse {
             jsonrpc: Cow<'a, str>,
             #[serde(flatten)]
             result: JsonRpcAnswer,
-            id: i64,
+            id: Id,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -419,12 +419,41 @@ pub enum JsonRpcAnswer {
 
 const JSONRPC: &str = "2.0";
 
+/// An identifier established by the Client that MUST contain a String, Number,
+/// or NULL value if included. If it is not included it is assumed to be a notification.
+/// The value SHOULD normally not be Null and Numbers SHOULD NOT contain fractional parts
+#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[serde(untagged)]
+pub enum Id {
+    Num(i64),
+    Str(String),
+    None(()),
+}
+
+impl From<()> for Id {
+    fn from(val: ()) -> Self {
+        Id::None(val)
+    }
+}
+
+impl From<i64> for Id {
+    fn from(val: i64) -> Self {
+        Id::Num(val)
+    }
+}
+
+impl From<String> for Id {
+    fn from(val: String) -> Self {
+        Id::Str(val)
+    }
+}
+
 #[cfg(test)]
 #[cfg(all(feature = "anyhow_error", feature = "serde_json"))]
 mod test {
     use crate::{
-        Deserialize, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason, JsonRpcExtractor,
-        JsonRpcRequest, JsonRpcResponse,
+        Deserialize, Id, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason,
+        JsonRpcExtractor, JsonRpcRequest, JsonRpcResponse,
     };
     use axum::routing::post;
     use serde::Serialize;
@@ -445,7 +474,7 @@ mod test {
         let res = client
             .post("/")
             .json(&JsonRpcRequest {
-                id: 0,
+                id: Id::Num(0),
                 method: "add".to_owned(),
                 params: serde_json::to_value(Test { a: 0, b: 111 }).unwrap(),
             })
@@ -457,7 +486,7 @@ mod test {
         let res = client
             .post("/")
             .json(&JsonRpcRequest {
-                id: 0,
+                id: Id::Num(0),
                 method: "lol".to_owned(),
                 params: serde_json::to_value(()).unwrap(),
             })
@@ -473,7 +502,7 @@ mod test {
             Value::Null,
         );
 
-        let error = JsonRpcResponse::error(0, error);
+        let error = JsonRpcResponse::error(Id::Num(0), error);
 
         assert_eq!(
             serde_json::to_value(error).unwrap(),
