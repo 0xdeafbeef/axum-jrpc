@@ -434,13 +434,13 @@ mod test {
     async fn test() {
         use axum::http::StatusCode;
         use axum::Router;
-        use axum_test_helper::TestClient;
+        use axum_test::TestServer;
 
         // you can replace this Router with your own app
         let app = Router::new().route("/", post(handler));
 
         // initiate the TestClient with the previous declared Router
-        let client = TestClient::new(app);
+        let client = TestServer::new(app).unwrap();
 
         let res = client
             .post("/")
@@ -449,10 +449,9 @@ mod test {
                 method: "add".to_owned(),
                 params: serde_json::to_value(Test { a: 0, b: 111 }).unwrap(),
             })
-            .send()
             .await;
-        assert_eq!(res.status(), StatusCode::OK);
-        let response = res.json::<JsonRpcResponse>().await;
+        assert_eq!(res.status_code(), StatusCode::OK);
+        let response = res.json::<JsonRpcResponse>();
         assert_eq!(response.result, JsonRpcAnswer::Result(111.into()));
 
         let res = client
@@ -462,12 +461,11 @@ mod test {
                 method: "lol".to_owned(),
                 params: serde_json::to_value(()).unwrap(),
             })
-            .send()
             .await;
 
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.status_code(), StatusCode::OK);
 
-        let response = res.json::<JsonRpcResponse>().await;
+        let response = res.json::<JsonRpcResponse>();
 
         let error = JsonRpcError::new(
             JsonRpcErrorReason::MethodNotFound,
