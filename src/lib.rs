@@ -210,7 +210,7 @@ where
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         if !json_content_type(req.headers()) {
             return Err(JsonRpcResponse {
-                id: Id::Num(0),
+                id: Id::None(()),
                 result: JsonRpcAnswer::Error(JsonRpcError::new(
                     JsonRpcErrorReason::InvalidRequest,
                     "Invalid content type".to_owned(),
@@ -224,7 +224,7 @@ where
             Ok(a) => a.to_vec(),
             Err(_) => {
                 return Err(JsonRpcResponse {
-                    id: Id::Num(0),
+                    id: Id::None(()),
                     result: JsonRpcAnswer::Error(JsonRpcError::new(
                         JsonRpcErrorReason::InvalidRequest,
                         "Invalid request".to_owned(),
@@ -240,7 +240,7 @@ where
                     Ok(a) => a,
                     Err(e) => {
                         return Err(JsonRpcResponse {
-                            id: Id::Num(0),
+                            id: Id::None(()),
                             result: JsonRpcAnswer::Error(JsonRpcError::new(
                                 JsonRpcErrorReason::InvalidRequest,
                                 e.to_string(),
@@ -254,7 +254,7 @@ where
                     Ok(a) => a,
                     Err(e) => {
                         return Err(JsonRpcResponse {
-                            id: Id::Num(0),
+                            id: Id::None(()),
                             result: JsonRpcAnswer::Error(JsonRpcError::new(
                                 JsonRpcErrorReason::InvalidRequest,
                                 e.to_string(),
@@ -309,13 +309,23 @@ pub struct JsonRpcResponse {
 }
 
 impl JsonRpcResponse {
-    fn new(id: Id, result: JsonRpcAnswer) -> Self {
-        Self { result, id }
+    fn new<ID>(id: ID, result: JsonRpcAnswer) -> Self
+    where
+        Id: From<ID>,
+    {
+        Self {
+            result,
+            id: id.into(),
+        }
     }
 
     /// Returns a response with the given result
     /// Returns JsonRpcError if the `result` is invalid input for [`serde_json::to_value`]
-    pub fn success<T: Serialize>(id: Id, result: T) -> Self {
+    pub fn success<T, ID>(id: ID, result: T) -> Self
+    where
+        T: Serialize,
+        Id: From<ID>,
+    {
         cfg_if::cfg_if! {
           if #[cfg(feature = "simd")] {
             match simd_json::serde::to_owned_value(result) {
@@ -345,7 +355,11 @@ impl JsonRpcResponse {
         }
     }
 
-    pub fn error(id: Id, error: JsonRpcError) -> Self {
+    pub fn error<ID>(id: ID, error: JsonRpcError) -> Self
+    where
+        Id: From<ID>,
+    {
+        let id = id.into();
         JsonRpcResponse {
             result: JsonRpcAnswer::Error(error),
             id,
@@ -452,8 +466,8 @@ impl From<String> for Id {
 #[cfg(all(feature = "anyhow_error", feature = "serde_json"))]
 mod test {
     use crate::{
-        Deserialize, Id, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason,
-        JsonRpcExtractor, JsonRpcRequest, JsonRpcResponse,
+        Deserialize, JrpcResult, JsonRpcAnswer, JsonRpcError, JsonRpcErrorReason, JsonRpcExtractor,
+        JsonRpcRequest, JsonRpcResponse,
     };
     use axum::routing::post;
     use serde::Serialize;
@@ -474,7 +488,7 @@ mod test {
         let res = client
             .post("/")
             .json(&JsonRpcRequest {
-                id: Id::Num(0),
+                id: 0.into(),
                 method: "add".to_owned(),
                 params: serde_json::to_value(Test { a: 0, b: 111 }).unwrap(),
             })
@@ -486,7 +500,7 @@ mod test {
         let res = client
             .post("/")
             .json(&JsonRpcRequest {
-                id: Id::Num(0),
+                id: 0.into(),
                 method: "lol".to_owned(),
                 params: serde_json::to_value(()).unwrap(),
             })
@@ -502,7 +516,7 @@ mod test {
             Value::Null,
         );
 
-        let error = JsonRpcResponse::error(Id::Num(0), error);
+        let error = JsonRpcResponse::error(0, error);
 
         assert_eq!(
             serde_json::to_value(error).unwrap(),
