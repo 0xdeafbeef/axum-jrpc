@@ -124,7 +124,7 @@ impl<'de> Deserialize<'de> for JsonRpcRequest {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 /// Parses a JSON-RPC request, and returns the request ID, the method name, and the parameters.
 /// If the request is invalid, returns an error.
 /// ```rust
