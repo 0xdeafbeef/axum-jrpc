@@ -11,7 +11,7 @@
     clippy::needless_borrow,
     clippy::match_wildcard_for_single_variants,
     clippy::if_let_mutex,
-    clippy::mismatched_target_os,
+    unexpected_cfgs,
     clippy::await_holding_lock,
     clippy::match_on_vec_items,
     clippy::imprecise_flops,
@@ -199,7 +199,6 @@ impl JsonRpcExtractor {
     }
 }
 
-#[async_trait::async_trait]
 impl<S> FromRequest<S> for JsonRpcExtractor
 where
     Bytes: FromRequest<S>,
