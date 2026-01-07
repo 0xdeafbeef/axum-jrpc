@@ -108,7 +108,7 @@ impl<'de> Deserialize<'de> for JsonRpcRequest {
             jsonrpc: Cow<'a, str>,
             id: Id,
             method: String,
-            params: Value,
+            params: Option<Value>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -116,7 +116,7 @@ impl<'de> Deserialize<'de> for JsonRpcRequest {
             Ok(Self {
                 id: helper.id,
                 method: helper.method,
-                params: helper.params,
+                params: helper.params.unwrap_or(Value::Null),
             })
         } else {
             Err(D::Error::custom("Unknown jsonrpc version"))
